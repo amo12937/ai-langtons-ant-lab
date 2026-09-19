@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0f14">
+  <meta name="description" content="盤面、アリ、色ルールを自由に構成して共有できるラングトンのアリ・シミュレーター">
+  <title>Ant Lab — ラングトンのアリ</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Cpath d='M16 5 27 25H5Z' fill='%235eead4'/%3E%3Ccircle cx='16' cy='18' r='4' fill='%230b0f14'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b10;
+      --panel: #0e141c;
+      --panel-2: #121b25;
+      --line: #243240;
+      --line-soft: #1a2631;
+      --text: #e9f1f7;
+      --muted: #8ca0b3;
+      --cyan: #5eead4;
+      --cyan-dim: #163c3a;
+      --danger: #fb7185;
+      --shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 52% -20%, rgba(94,234,212,.09), transparent 35rem),
+        var(--bg);
+      font: 15px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button, input, select { color: var(--text); }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar {
+      min-height: 72px;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(8,11,16,.86);
+      backdrop-filter: blur(18px);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 238px; }
+    .mark {
+      width: 36px; height: 36px; border: 1px solid #2c4f4c; border-radius: 10px;
+      display: grid; place-items: center; color: var(--cyan); background: #0e1b1c;
+      font-size: 20px; transform: rotate(-8deg);
+    }
+    .brand h1 { margin: 0; font-size: 17px; letter-spacing: .02em; }
+    .brand p { margin: 1px 0 0; color: var(--muted); font-size: 12px; }
+    .transport { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
+    .button {
+      min-height: 40px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 9px;
+      padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      transition: border-color .15s, background .15s, transform .08s;
+    }
+    .button:hover { border-color: #3b5368; background: #172330; }
+    .button:active { transform: translateY(1px); }
+    .button.primary { color: #041413; background: var(--cyan); border-color: var(--cyan); font-weight: 750; }
+    .button.primary:hover { background: #7ef3e1; }
+    .button.icon { width: 40px; padding: 0; font-size: 17px; }
+    .button.danger { color: #fecdd3; }
+    .step-readout { min-width: 132px; padding: 0 9px; text-align: center; }
+    .step-readout small { display: block; color: var(--muted); font-size: 10px; letter-spacing: .13em; text-transform: uppercase; }
+    .step-readout strong { display: block; font: 700 19px/1.15 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--cyan); }
+    .share { margin-left: auto; white-space: nowrap; }
+    .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 310px minmax(380px,1fr) 310px; }
+    .sidebar {
+      padding: 18px; background: rgba(14,20,28,.82); overflow: auto;
+      border-right: 1px solid var(--line);
+    }
+    .sidebar.right { border-right: 0; border-left: 1px solid var(--line); }
+    .section { padding: 0 0 20px; margin: 0 0 20px; border-bottom: 1px solid var(--line-soft); }
+    .section:last-child { border-bottom: 0; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .section h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .11em; color: #c6d5df; }
+    .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    label { display: block; color: var(--muted); font-size: 12px; }
+    input[type="number"], select, .jump-input {
+      width: 100%; height: 38px; margin-top: 5px; padding: 0 10px; border: 1px solid var(--line);
+      border-radius: 8px; outline: 0; background: #0a1118;
+    }
+    input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(94,234,212,.09); }
+    .palette { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .swatch {
+      width: 32px; height: 32px; border-radius: 8px; border: 2px solid transparent;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); position: relative;
+    }
+    .swatch.active { border-color: white; box-shadow: 0 0 0 2px var(--cyan-dim); }
+    .swatch.active::after { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: rgba(255,255,255,.82); mix-blend-mode: difference; }
+    .mini { border: 0; background: transparent; color: var(--cyan); padding: 2px 0; font-size: 12px; }
+    .mini:hover { text-decoration: underline; }
+    .ant-list, .rule-list { display: grid; gap: 8px; }
+    .ant-row, .rule-row {
+      padding: 10px; border: 1px solid var(--line-soft); border-radius: 10px; background: #0a1118;
+    }
+    .ant-row-top, .rule-row { display: flex; align-items: center; gap: 8px; }
+    .ant-index { width: 24px; color: var(--cyan); font: 700 12px ui-monospace, monospace; }
+    .ant-row .coords { display: grid; grid-template-columns: 1fr 1fr 1.2fr 30px; gap: 6px; margin-top: 8px; }
+    .ant-row input, .ant-row select, .rule-row select {
+      height: 34px; min-width: 0; margin: 0; padding: 0 7px; border: 1px solid var(--line); border-radius: 7px; background: #0e1720;
+    }
+    .remove { border: 0; background: transparent; color: var(--muted); height: 32px; width: 28px; border-radius: 6px; }
+    .remove:hover { color: var(--danger); background: rgba(251,113,133,.1); }
+    .rule-color { width: 30px; height: 30px; border: 0; padding: 0; background: transparent; }
+    .rule-color::-webkit-color-swatch-wrapper { padding: 0; }
+    .rule-color::-webkit-color-swatch { border: 1px solid rgba(255,255,255,.25); border-radius: 7px; }
+    .rule-color::-moz-color-swatch { border: 1px solid rgba(255,255,255,.25); border-radius: 7px; }
+    .rule-label { flex: 1; color: #cbd8e1; font: 12px ui-monospace, monospace; }
+    .stage { min-width: 0; min-height: 520px; padding: 18px; display: flex; flex-direction: column; }
+    .canvas-shell {
+      flex: 1; min-height: 450px; position: relative; overflow: hidden; border: 1px solid var(--line);
+      border-radius: 14px; background: #05080c; box-shadow: var(--shadow);
+    }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+    .canvas-tools {
+      position: absolute; left: 12px; bottom: 12px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px; color: #aebdc8; background: rgba(5,8,12,.78); backdrop-filter: blur(8px); font-size: 12px;
+      pointer-events: none;
+    }
+    .statusbar { min-height: 38px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; gap: 15px; }
+    .statusbar strong { color: #cdd9e1; }
+    .progress { position: absolute; inset: 0; display: none; place-items: center; background: rgba(5,8,12,.68); backdrop-filter: blur(3px); z-index: 5; }
+    .progress.show { display: grid; }
+    .progress-card { min-width: 220px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); text-align: center; }
+    .progress-card strong { display: block; color: var(--cyan); font: 700 18px ui-monospace, monospace; }
+    .progress-card span { color: var(--muted); font-size: 12px; }
+    .jump { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .jump-input { margin: 0; height: 40px; }
+    .speed-row { display: grid; grid-template-columns: 1fr 74px; gap: 10px; align-items: center; }
+    input[type="range"] { width: 100%; accent-color: var(--cyan); }
+    .notice {
+      position: fixed; right: 20px; bottom: 20px; padding: 11px 14px; border: 1px solid #2a5450; border-radius: 10px;
+      color: #d6fffa; background: #102523; box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); pointer-events: none;
+      transition: .2s; z-index: 50;
+    }
+    .notice.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 1040px) {
+      .workspace { grid-template-columns: 280px minmax(360px,1fr); }
+      .sidebar.right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+      .sidebar.right .section { border: 0; margin: 0; padding: 0; }
+    }
+    @media (max-width: 760px) {
+      .topbar { position: static; flex-wrap: wrap; padding: 12px; gap: 10px; }
+      .brand { min-width: 0; flex: 1; }
+      .brand p { display: none; }
+      .transport { order: 3; width: 100%; justify-content: space-between; }
+      .share { margin-left: 0; }
+      .workspace { display: flex; flex-direction: column; }
+      .stage { order: -1; min-height: 58vh; padding: 10px; }
+      .canvas-shell { min-height: 48vh; }
+      .sidebar, .sidebar.right { border: 0; border-top: 1px solid var(--line); }
+      .sidebar.right { display: block; }
+      .sidebar.right .section { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line-soft); }
+      .step-readout { min-width: 105px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">▲</div>
+        <div><h1>ANT LAB</h1><p>ラングトンのアリ実験室</p></div>
+      </div>
+      <div class="transport" aria-label="再生コントロール">
+        <button class="button icon" id="resetBtn" title="開始ステップに戻る" aria-label="開始ステップに戻る">↺</button>
+        <button class="button icon" id="backBtn" title="1ステップ戻る" aria-label="1ステップ戻る">‹</button>
+        <button class="button primary" id="playBtn"><span id="playIcon">▶</span><span id="playText">再生</span></button>
+        <button class="button icon" id="stepBtn" title="1ステップ進む" aria-label="1ステップ進む">›</button>
+        <div class="step-readout"><small>step</small><strong id="stepDisplay">0</strong></div>
+      </div>
+      <button class="button share" id="shareBtn">URLをコピー</button>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-head"><h2>盤面</h2><button class="mini" id="clearBoardBtn">すべて消去</button></div>
+          <div class="fields">
+            <label>幅<input type="number" id="boardWidth" min="4" max="300" value="61"></label>
+            <label>高さ<input type="number" id="boardHeight" min="4" max="300" value="61"></label>
+          </div>
+          <div class="palette" id="paintPalette" aria-label="ペイント色"></div>
+          <p class="hint">色を選び、盤面をクリックまたはドラッグして初期色を塗ります。</p>
+        </section>
+        <section class="section">
+          <div class="section-head"><h2>アリ</h2><button class="mini" id="addAntBtn">＋ 追加</button></div>
+          <div class="ant-list" id="antList"></div>
+          <p class="hint">座標は左上が 0, 0 です。盤面の端は反対側につながります。</p>
+        </section>
+      </aside>
+
+      <section class="stage">
+        <div class="canvas-shell" id="canvasShell">
+          <canvas id="boardCanvas" aria-label="ラングトンのアリの盤面"></canvas>
+          <div class="canvas-tools" id="canvasHint">編集中 · ドラッグで初期色を変更</div>
+          <div class="progress" id="progress"><div class="progress-card"><strong id="progressStep">0</strong><span>ステップを計算中</span></div></div>
+        </div>
+        <div class="statusbar">
+          <span><strong id="boardInfo">61 × 61</strong> セル</span>
+          <span id="antInfo">1 ant · 2 colors</span>
+        </div>
+      </section>
+
+      <aside class="sidebar right">
+        <section class="section">
+          <div class="section-head"><h2>色とルール</h2><button class="mini" id="addColorBtn">＋ 色を追加</button></div>
+          <div class="rule-list" id="ruleList"></div>
+          <p class="hint">セルの色を読んで回転し、次の色に変えてから1マス進みます。</p>
+        </section>
+        <section class="section">
+          <div class="section-head"><h2>時間</h2></div>
+          <label>開始ステップ<input type="number" id="startStep" min="0" step="1" value="0"></label>
+          <button class="button" id="applyStartBtn" style="width:100%;margin-top:8px">開始位置を適用</button>
+          <div style="height:16px"></div>
+          <label>任意ステップへ移動</label>
+          <div class="jump" style="margin-top:6px">
+            <input class="jump-input" type="number" id="jumpStep" min="0" step="1" value="10000" aria-label="移動先ステップ">
+            <button class="button" id="jumpBtn">移動</button>
+          </div>
+          <div style="height:16px"></div>
+          <label>再生速度</label>
+          <div class="speed-row">
+            <input type="range" id="speedRange" min="0" max="6" step="1" value="2">
+            <span id="speedLabel">10 / frame</span>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <div class="notice" id="notice" role="status"></div>
+
+  <script>
+    const DEFAULT = {
+      width: 61,
+      height: 61,
+      colors: [{ hex: '#071019', turn: 1 }, { hex: '#5eead4', turn: -1 }],
+      ants: [{ x: 30, y: 30, dir: 0 }],
+      board: [],
+      startStep: 0,
+      speedIndex: 2
+    };
+    const SPEEDS = [1, 2, 10, 50, 250, 1000, 5000];
+    const DIR_NAMES = ['↑ 北', '→ 東', '↓ 南', '← 西'];
+    const TURN_NAMES = { '-1': '左へ 90°', '0': '直進', '1': '右へ 90°', '2': '反転' };
+    const els = Object.fromEntries([...document.querySelectorAll('[id]')].map(el => [el.id, el]));
+    const canvas = els.boardCanvas;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    let config = structuredClone(DEFAULT);
+    let initialGrid = new Uint8Array(config.width * config.height);
+    let grid = initialGrid.slice();
+    let ants = structuredClone(config.ants);
+    let step = 0;
+    let isPlaying = false;
+    let frameId = 0;
+    let selectedColor = 1;
+    let painting = false;
+    let lastPaintCell = -1;
+    let checkpoints = new Map();
+    let jumping = false;
+
+    function clampInt(value, min, max) {
+      const parsed = Math.floor(Number(value));
+      return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : min;
+    }
+
+    function encodeState(overrides = {}) {
+      const board = [];
+      for (let i = 0; i < initialGrid.length; i++) if (initialGrid[i]) board.push([i, initialGrid[i]]);
+      const payload = {
+        v: 1, w: config.width, h: config.height,
+        c: config.colors.map(c => [c.hex, c.turn]),
+        a: config.ants.map(a => [a.x, a.y, a.dir]),
+        b: board, s: overrides.startStep ?? config.startStep,
+        z: config.speedIndex
+      };
+      const bytes = new TextEncoder().encode(JSON.stringify(payload));
+      let binary = '';
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+    }
+
+    function decodeState(value) {
+      const base64 = value.replaceAll('-', '+').replaceAll('_', '/');
+      const binary = atob(base64 + '='.repeat((4 - base64.length % 4) % 4));
+      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+      const p = JSON.parse(new TextDecoder().decode(bytes));
+      const width = clampInt(p.w, 4, 300);
+      const height = clampInt(p.h, 4, 300);
+      const colors = Array.isArray(p.c) ? p.c.slice(0, 16).map(c => ({
+        hex: /^#[0-9a-f]{6}$/i.test(c[0]) ? c[0] : '#ffffff',
+        turn: [-1, 0, 1, 2].includes(Number(c[1])) ? Number(c[1]) : 1
+      })) : [];
+      if (colors.length < 2) throw new Error('色が不足しています');
+      const loaded = {
+        width, height, colors,
+        ants: Array.isArray(p.a) ? p.a.slice(0, 32).map(a => ({
+          x: clampInt(a[0], 0, width - 1), y: clampInt(a[1], 0, height - 1), dir: clampInt(a[2], 0, 3)
+        })) : [],
+        board: Array.isArray(p.b) ? p.b : [],
+        startStep: clampInt(p.s, 0, Number.MAX_SAFE_INTEGER),
+        speedIndex: clampInt(p.z, 0, SPEEDS.length - 1)
+      };
+      if (!loaded.ants.length) loaded.ants.push({ x: Math.floor(width / 2), y: Math.floor(height / 2), dir: 0 });
+      return loaded;
+    }
+
+    function loadFromUrl() {
+      const match = location.hash.match(/(?:^#|&)s=([^&]+)/);
+      if (!match) return false;
+      try { config = decodeState(match[1]); return true; }
+      catch (error) { showNotice('URLの設定を読み込めませんでした'); return false; }
+    }
+
+    function buildInitialGrid() {
+      initialGrid = new Uint8Array(config.width * config.height);
+      for (const item of config.board || []) {
+        const index = Number(item[0]);
+        const color = Number(item[1]);
+        if (index >= 0 && index < initialGrid.length && color > 0 && color < config.colors.length) initialGrid[index] = color;
+      }
+    }
+
+    function syncConfigBoard() {
+      config.board = [];
+      for (let i = 0; i < initialGrid.length; i++) if (initialGrid[i]) config.board.push([i, initialGrid[i]]);
+    }
+
+    function resetState() {
+      stop();
+      grid = initialGrid.slice();
+      ants = structuredClone(config.ants);
+      step = 0;
+      checkpoints = new Map([[0, snapshot()]]);
+      updateReadout();
+      draw();
+    }
+
+    function snapshot() { return { grid: grid.slice(), ants: structuredClone(ants) }; }
+    function restore(snap, atStep) {
+      grid = snap.grid.slice(); ants = structuredClone(snap.ants); step = atStep;
+    }
+
+    function runOne() {
+      const width = config.width, height = config.height, colorCount = config.colors.length;
+      for (const ant of ants) {
+        const index = ant.y * width + ant.x;
+        const colorIndex = grid[index] % colorCount;
+        ant.dir = (ant.dir + config.colors[colorIndex].turn + 4) % 4;
+        grid[index] = (colorIndex + 1) % colorCount;
+        if (ant.dir === 0) ant.y = (ant.y + height - 1) % height;
+        if (ant.dir === 1) ant.x = (ant.x + 1) % width;
+        if (ant.dir === 2) ant.y = (ant.y + 1) % height;
+        if (ant.dir === 3) ant.x = (ant.x + width - 1) % width;
+      }
+      step++;
+      if (step % 5000 === 0 && checkpoints.size < 300) checkpoints.set(step, snapshot());
+    }
+
+    async function goToStep(target, quiet = false) {
+      target = clampInt(target, 0, Number.MAX_SAFE_INTEGER);
+      if (jumping || target === step) return;
+      stop(); jumping = true; els.progress.classList.add('show');
+      if (target < step) {
+        const candidates = [...checkpoints.keys()].filter(n => n <= target);
+        const nearest = candidates.length ? Math.max(...candidates) : 0;
+        restore(checkpoints.get(nearest) || checkpoints.get(0), nearest);
+      }
+      let lastYield = performance.now();
+      while (step < target) {
+        runOne();
+        if (performance.now() - lastYield > 22) {
+          els.progressStep.textContent = step.toLocaleString('ja-JP');
+          updateReadout(); draw();
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          lastYield = performance.now();
+        }
+      }
+      jumping = false; els.progress.classList.remove('show'); updateReadout(); draw();
+      if (!quiet) showNotice(`${target.toLocaleString('ja-JP')} ステップへ移動しました`);
+    }
+
+    function playLoop() {
+      if (!isPlaying) return;
+      const count = SPEEDS[config.speedIndex];
+      for (let i = 0; i < count; i++) runOne();
+      updateReadout(); draw(); frameId = requestAnimationFrame(playLoop);
+    }
+
+    function play() {
+      if (jumping || isPlaying) return;
+      isPlaying = true; els.playIcon.textContent = 'Ⅱ'; els.playText.textContent = '停止';
+      els.canvasHint.textContent = '再生中'; frameId = requestAnimationFrame(playLoop);
+    }
+
+    function stop() {
+      isPlaying = false; cancelAnimationFrame(frameId);
+      els.playIcon.textContent = '▶'; els.playText.textContent = '再生';
+      els.canvasHint.textContent = step === config.startStep ? '編集中 · ドラッグで初期色を変更' : '停止中 · 盤面編集で初期状態に戻ります';
+    }
+
+    function resizeCanvas() {
+      const rect = els.canvasShell.getBoundingClientRect();
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      canvas.dataset.dpr = dpr; draw();
+    }
+
+    function geometry() {
+      const dpr = Number(canvas.dataset.dpr || 1);
+      const width = canvas.width / dpr, height = canvas.height / dpr;
+      const cell = Math.min(width / config.width, height / config.height);
+      return { dpr, width, height, cell, ox: (width - cell * config.width) / 2, oy: (height - cell * config.height) / 2 };
+    }
+
+    function draw() {
+      const { dpr, width, height, cell, ox, oy } = geometry();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, width, height);
+      for (let y = 0; y < config.height; y++) {
+        let runColor = grid[y * config.width] % config.colors.length, runStart = 0;
+        for (let x = 1; x <= config.width; x++) {
+          const next = x < config.width ? grid[y * config.width + x] % config.colors.length : -1;
+          if (next !== runColor) {
+            ctx.fillStyle = config.colors[runColor].hex;
+            ctx.fillRect(ox + runStart * cell, oy + y * cell, (x - runStart) * cell + .4, cell + .4);
+            runColor = next; runStart = x;
+          }
+        }
+      }
+      if (cell >= 9) {
+        ctx.strokeStyle = 'rgba(160,190,210,.12)'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = 0; x <= config.width; x++) { const px = Math.round(ox + x * cell) + .5; ctx.moveTo(px, oy); ctx.lineTo(px, oy + config.height * cell); }
+        for (let y = 0; y <= config.height; y++) { const py = Math.round(oy + y * cell) + .5; ctx.moveTo(ox, py); ctx.lineTo(ox + config.width * cell, py); }
+        ctx.stroke();
+      }
+      for (let i = 0; i < ants.length; i++) drawAnt(ants[i], i, { cell, ox, oy });
+    }
+
+    function drawAnt(ant, index, g) {
+      const cx = g.ox + (ant.x + .5) * g.cell, cy = g.oy + (ant.y + .5) * g.cell;
+      const r = Math.max(3, Math.min(g.cell * .42, 12));
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(ant.dir * Math.PI / 2);
+      ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * .78, r * .78); ctx.lineTo(0, r * .46); ctx.lineTo(-r * .78, r * .78); ctx.closePath();
+      ctx.fillStyle = index % 2 ? '#f472b6' : '#f8fafc'; ctx.fill();
+      ctx.strokeStyle = '#071019'; ctx.lineWidth = Math.max(1, r * .16); ctx.stroke(); ctx.restore();
+    }
+
+    function renderPalette() {
+      selectedColor = Math.min(selectedColor, config.colors.length - 1);
+      els.paintPalette.innerHTML = config.colors.map((color, index) =>
+        `<button class="swatch ${index === selectedColor ? 'active' : ''}" style="background:${color.hex}" data-color="${index}" title="色 ${index + 1}" aria-label="色 ${index + 1}を選択"></button>`
+      ).join('');
+      els.paintPalette.querySelectorAll('.swatch').forEach(btn => btn.addEventListener('click', () => { selectedColor = Number(btn.dataset.color); renderPalette(); }));
+    }
+
+    function renderAnts() {
+      els.antList.innerHTML = config.ants.map((ant, index) => `
+        <div class="ant-row" data-ant="${index}">
+          <div class="ant-row-top"><span class="ant-index">A${index + 1}</span><span style="color:var(--muted);font-size:12px">初期位置と向き</span></div>
+          <div class="coords">
+            <input type="number" min="0" max="${config.width - 1}" value="${ant.x}" data-field="x" aria-label="アリ${index + 1}のX座標">
+            <input type="number" min="0" max="${config.height - 1}" value="${ant.y}" data-field="y" aria-label="アリ${index + 1}のY座標">
+            <select data-field="dir" aria-label="アリ${index + 1}の向き">${DIR_NAMES.map((name, dir) => `<option value="${dir}" ${ant.dir === dir ? 'selected' : ''}>${name}</option>`).join('')}</select>
+            <button class="remove" data-remove="${index}" aria-label="アリ${index + 1}を削除">×</button>
+          </div>
+        </div>`).join('');
+      els.antList.querySelectorAll('input, select').forEach(input => input.addEventListener('change', onAntChange));
+      els.antList.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => removeAnt(Number(btn.dataset.remove))));
+    }
+
+    function renderRules() {
+      els.ruleList.innerHTML = config.colors.map((color, index) => `
+        <div class="rule-row" data-rule="${index}">
+          <input type="color" class="rule-color" value="${color.hex}" data-field="hex" aria-label="色 ${index + 1}">
+          <span class="rule-label">C${String(index + 1).padStart(2, '0')}</span>
+          <select data-field="turn" aria-label="色 ${index + 1}での回転">${[-1,0,1,2].map(turn => `<option value="${turn}" ${color.turn === turn ? 'selected' : ''}>${TURN_NAMES[turn]}</option>`).join('')}</select>
+          <button class="remove" data-remove-color="${index}" ${config.colors.length <= 2 ? 'disabled' : ''} aria-label="色 ${index + 1}を削除">×</button>
+        </div>`).join('');
+      els.ruleList.querySelectorAll('input, select').forEach(input => input.addEventListener('input', onRuleChange));
+      els.ruleList.querySelectorAll('[data-remove-color]').forEach(btn => btn.addEventListener('click', () => removeColor(Number(btn.dataset.removeColor))));
+    }
+
+    function renderAll() {
+      els.boardWidth.value = config.width; els.boardHeight.value = config.height;
+      els.startStep.value = config.startStep; els.speedRange.value = config.speedIndex;
+      els.speedLabel.textContent = `${SPEEDS[config.speedIndex]} / frame`;
+      renderPalette(); renderAnts(); renderRules(); updateReadout(); requestAnimationFrame(resizeCanvas);
+    }
+
+    function updateReadout() {
+      els.stepDisplay.textContent = step.toLocaleString('ja-JP');
+      els.boardInfo.textContent = `${config.width} × ${config.height}`;
+      els.antInfo.textContent = `${config.ants.length} ant${config.ants.length === 1 ? '' : 's'} · ${config.colors.length} colors`;
+      els.backBtn.disabled = jumping || step <= 0; els.stepBtn.disabled = jumping;
+    }
+
+    function onAntChange(event) {
+      const row = event.target.closest('[data-ant]'); const index = Number(row.dataset.ant); const field = event.target.dataset.field;
+      config.ants[index][field] = field === 'x' ? clampInt(event.target.value, 0, config.width - 1) : field === 'y' ? clampInt(event.target.value, 0, config.height - 1) : clampInt(event.target.value, 0, 3);
+      renderAnts(); resetStateToStart();
+    }
+
+    function onRuleChange(event) {
+      const index = Number(event.target.closest('[data-rule]').dataset.rule); const field = event.target.dataset.field;
+      config.colors[index][field] = field === 'turn' ? Number(event.target.value) : event.target.value;
+      renderPalette(); resetStateToStart();
+    }
+
+    function removeAnt(index) {
+      if (config.ants.length <= 1) return showNotice('アリは1匹以上必要です');
+      config.ants.splice(index, 1); renderAnts(); resetStateToStart();
+    }
+
+    function removeColor(index) {
+      if (config.colors.length <= 2) return;
+      config.colors.splice(index, 1);
+      for (let i = 0; i < initialGrid.length; i++) initialGrid[i] = initialGrid[i] === index ? 0 : initialGrid[i] > index ? initialGrid[i] - 1 : initialGrid[i];
+      syncConfigBoard(); renderRules(); renderPalette(); resetStateToStart();
+    }
+
+    function resizeBoard() {
+      const newW = clampInt(els.boardWidth.value, 4, 300), newH = clampInt(els.boardHeight.value, 4, 300);
+      const next = new Uint8Array(newW * newH);
+      const copyW = Math.min(config.width, newW), copyH = Math.min(config.height, newH);
+      for (let y = 0; y < copyH; y++) for (let x = 0; x < copyW; x++) next[y * newW + x] = initialGrid[y * config.width + x];
+      config.width = newW; config.height = newH; initialGrid = next;
+      config.ants.forEach(a => { a.x = Math.min(a.x, newW - 1); a.y = Math.min(a.y, newH - 1); });
+      syncConfigBoard(); renderAll(); resetStateToStart();
+    }
+
+    function paintAt(event) {
+      const rect = canvas.getBoundingClientRect(); const g = geometry();
+      const x = Math.floor((event.clientX - rect.left - g.ox) / g.cell);
+      const y = Math.floor((event.clientY - rect.top - g.oy) / g.cell);
+      if (x < 0 || y < 0 || x >= config.width || y >= config.height) return;
+      const index = y * config.width + x; if (index === lastPaintCell) return;
+      if (step !== config.startStep || isPlaying) resetState();
+      initialGrid[index] = selectedColor; grid[index] = selectedColor; lastPaintCell = index;
+      syncConfigBoard(); checkpoints = new Map([[0, { grid: initialGrid.slice(), ants: structuredClone(config.ants) }]]); draw();
+    }
+
+    async function resetStateToStart() {
+      resetState();
+      if (config.startStep > 0) await goToStep(config.startStep, true);
+      stop(); updateReadout();
+    }
+
+    function showNotice(message) {
+      els.notice.textContent = message; els.notice.classList.add('show');
+      clearTimeout(showNotice.timer); showNotice.timer = setTimeout(() => els.notice.classList.remove('show'), 2200);
+    }
+
+    els.playBtn.addEventListener('click', () => isPlaying ? stop() : play());
+    els.stepBtn.addEventListener('click', () => { stop(); runOne(); updateReadout(); draw(); });
+    els.backBtn.addEventListener('click', () => goToStep(Math.max(0, step - 1), true));
+    els.resetBtn.addEventListener('click', () => resetStateToStart());
+    els.jumpBtn.addEventListener('click', () => goToStep(els.jumpStep.value));
+    els.jumpStep.addEventListener('keydown', event => { if (event.key === 'Enter') goToStep(els.jumpStep.value); });
+    els.applyStartBtn.addEventListener('click', async () => {
+      config.startStep = clampInt(els.startStep.value, 0, Number.MAX_SAFE_INTEGER);
+      await resetStateToStart(); showNotice('開始ステップを適用しました');
+    });
+    els.speedRange.addEventListener('input', () => {
+      config.speedIndex = Number(els.speedRange.value); els.speedLabel.textContent = `${SPEEDS[config.speedIndex]} / frame`;
+    });
+    els.boardWidth.addEventListener('change', resizeBoard); els.boardHeight.addEventListener('change', resizeBoard);
+    els.clearBoardBtn.addEventListener('click', () => { initialGrid.fill(0); syncConfigBoard(); resetStateToStart(); });
+    els.addAntBtn.addEventListener('click', () => {
+      if (config.ants.length >= 32) return showNotice('アリは32匹までです');
+      config.ants.push({ x: Math.floor(config.width / 2), y: Math.floor(config.height / 2), dir: 0 }); renderAnts(); resetStateToStart();
+    });
+    els.addColorBtn.addEventListener('click', () => {
+      if (config.colors.length >= 16) return showNotice('色は16色までです');
+      const presets = ['#f472b6','#facc15','#60a5fa','#a78bfa','#fb923c','#34d399'];
+      config.colors.push({ hex: presets[(config.colors.length - 2) % presets.length], turn: config.colors.length % 2 ? -1 : 1 });
+      renderRules(); renderPalette(); resetStateToStart();
+    });
+    els.shareBtn.addEventListener('click', async () => {
+      const url = `${location.origin}${location.pathname}#s=${encodeState({ startStep: step })}`;
+      history.replaceState(null, '', url);
+      try { await navigator.clipboard.writeText(url); showNotice('現在の状態を再現するURLをコピーしました'); }
+      catch { showNotice('URLをアドレスバーに反映しました'); }
+    });
+    canvas.addEventListener('pointerdown', event => { painting = true; lastPaintCell = -1; canvas.setPointerCapture(event.pointerId); paintAt(event); });
+    canvas.addEventListener('pointermove', event => { if (painting) paintAt(event); });
+    canvas.addEventListener('pointerup', () => { painting = false; lastPaintCell = -1; });
+    window.addEventListener('resize', resizeCanvas);
+    document.addEventListener('keydown', event => {
+      if (event.target.matches('input,select')) return;
+      if (event.code === 'Space') { event.preventDefault(); isPlaying ? stop() : play(); }
+      if (event.key === 'ArrowRight') { stop(); runOne(); updateReadout(); draw(); }
+      if (event.key === 'ArrowLeft') goToStep(Math.max(0, step - 1), true);
+    });
+
+    function registerWebMCP() {
+      const context = document.modelContext;
+      if (!context?.registerTool) return;
+      const safeRegister = tool => { try { Promise.resolve(context.registerTool(tool)).catch(() => {}); } catch {} };
+      safeRegister({
+        name: 'read_ant_simulation', title: 'シミュレーション状態を取得',
+        description: '現在の盤面設定、アリ、ルール、ステップ数を読み取ります。',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+        annotations: { readOnlyHint: true, untrustedContentHint: false },
+        execute: () => ({ width: config.width, height: config.height, colors: config.colors, ants, step, playing: isPlaying })
+      });
+      safeRegister({
+        name: 'jump_ant_simulation', title: '指定ステップへ移動',
+        description: 'シミュレーションを停止し、指定した絶対ステップへ移動します。',
+        inputSchema: { type: 'object', properties: { step: { type: 'integer', minimum: 0 } }, required: ['step'], additionalProperties: false },
+        annotations: { readOnlyHint: false, untrustedContentHint: false },
+        execute: async input => { if (!Number.isSafeInteger(input?.step) || input.step < 0) throw new Error('stepは0以上の整数が必要です'); await goToStep(input.step, true); return { step }; }
+      });
+      safeRegister({
+        name: 'control_ant_simulation', title: '再生状態を変更',
+        description: 'シミュレーションを再生、停止、または1ステップ進めます。',
+        inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['play','pause','step'] } }, required: ['action'], additionalProperties: false },
+        annotations: { readOnlyHint: false, untrustedContentHint: false },
+        execute: input => { if (input.action === 'play') play(); else if (input.action === 'pause') stop(); else if (input.action === 'step') { stop(); runOne(); updateReadout(); draw(); } else throw new Error('未対応の操作です'); return { step, playing: isPlaying }; }
+      });
+    }
+
+    const loaded = loadFromUrl();
+    buildInitialGrid(); renderAll(); resetState();
+    if (config.startStep > 0) goToStep(config.startStep, true);
+    if (loaded) showNotice('URLから設定を読み込みました');
+    registerWebMCP();
+  </script>
+</body>
+</html>
